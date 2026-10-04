@@ -49,6 +49,13 @@ export function MainLayout() {
                             <i className="bi bi-pencil-square d-block text-center"></i>
                             <small>Notas</small>
                         </Link>
+
+                        <Link
+                            to="/drafts"
+                            className="btn btn-link text-secondary text-decoration-none">
+                            <i className="bi bi-file-text d-block text-center"></i>
+                            <small>Borradores</small>
+                        </Link>
                     </div>
                 </div>
             </nav>
