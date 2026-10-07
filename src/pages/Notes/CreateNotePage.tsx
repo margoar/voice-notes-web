@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { createNote } from '../../api/notes.api';
-
+import { transcribeAudio } from '../../services/speechToText.service';
 export function CreateNotePage() {
     const { bookId } = useParams();
 
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [error, setError] = useState<string | null>(null);
-
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
@@ -18,6 +18,10 @@ export function CreateNotePage() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const mediaStreamRef = useRef<MediaStream | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
+
+    const [transcription, setTranscription] = useState('');
+    const [correctedText, setCorrectedText] = useState('');
+    const [isTranscribing, setIsTranscribing] = useState(false);
 
     useEffect(() => {
         if (!isRecording) {
@@ -88,6 +92,8 @@ export function CreateNotePage() {
                     type: recorder.mimeType,
                 });
 
+                setAudioBlob(blob);
+
                 const url = URL.createObjectURL(blob);
 
                 setAudioUrl(url);
@@ -129,6 +135,11 @@ export function CreateNotePage() {
             return;
         }
 
+        if (!transcription || !correctedText.trim()) {
+            setSaveError('Debes tener una transcripción para guardar la nota.');
+            return;
+        }
+
         setSaving(true);
         setSaveError(null);
         setSaved(false);
@@ -136,10 +147,8 @@ export function CreateNotePage() {
         try {
             await createNote({
                 bookId: Number(bookId),
-                transcriptionText:
-                    'Una reflexión sobre este libro que grabé desde Voice Notes.',
-                correctedText:
-                    'Una reflexión sobre este libro que grabé desde Voice Notes.',
+                transcriptionText: transcription,
+                correctedText,
             });
 
             setSaved(true);
@@ -149,7 +158,23 @@ export function CreateNotePage() {
             setSaving(false);
         }
     };
+    const handleTranscribe = async () => {
+        if (!audioBlob) return;
 
+        setIsTranscribing(true);
+        setError(null);
+
+        try {
+            const text = await transcribeAudio(audioBlob);
+            setTranscription(text);
+            setCorrectedText(text);
+        } catch (error) {
+            console.error(error);
+            setError('No pudimos transcribir la grabación.');
+        } finally {
+            setIsTranscribing(false);
+        }
+    };
     return (
         <div className="container py-4">
             <div className="mb-4">
@@ -243,7 +268,38 @@ export function CreateNotePage() {
                                 src={audioUrl}
                                 className="w-100 mb-4"
                             />
+                            <button
+                                type="button"
+                                className="btn btn-dark py-3 mb-3 w-100"
+                                onClick={handleTranscribe}
+                                disabled={isTranscribing} >
+                                <i className="bi bi-magic me-2"></i>
+                                {isTranscribing ? 'Transcribiendo...' : 'Transcribir grabación'}
+                            </button>
 
+                            {transcription && (
+                                <div className="text-start mt-4">
+                                    <label
+                                        htmlFor="correctedText"
+                                        className="form-label fw-semibold"
+                                    >
+                                        Corrige tu nota
+                                    </label>
+
+                                    <textarea
+                                        id="correctedText"
+                                        className="form-control"
+                                        rows={7}
+                                        value={correctedText}
+                                        onChange={(event) => setCorrectedText(event.target.value)}
+                                        placeholder="Corrige aquí la transcripción..."
+                                    />
+
+                                    <small className="text-secondary">
+                                        Puedes modificar el texto antes de guardarlo.
+                                    </small>
+                                </div>
+                            )}
                             <div className="d-flex flex-column gap-2">
                                 <button
                                     type="button"
