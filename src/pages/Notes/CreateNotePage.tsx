@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import { createNote } from '../../api/notes.api';
+
 export function CreateNotePage() {
     const { bookId } = useParams();
 
@@ -8,6 +10,10 @@ export function CreateNotePage() {
     const [recordingTime, setRecordingTime] = useState(0);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const [saved, setSaved] = useState(false);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -51,6 +57,8 @@ export function CreateNotePage() {
     const startRecording = async () => {
         try {
             setError(null);
+            setSaveError(null);
+            setSaved(false);
 
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: true,
@@ -115,6 +123,33 @@ export function CreateNotePage() {
         setIsRecording(false);
     };
 
+    const handleSaveNote = async () => {
+        if (!bookId) {
+            setSaveError('No se encontró el libro.');
+            return;
+        }
+
+        setSaving(true);
+        setSaveError(null);
+        setSaved(false);
+
+        try {
+            await createNote({
+                bookId: Number(bookId),
+                transcriptionText:
+                    'Una reflexión sobre este libro que grabé desde Voice Notes.',
+                correctedText:
+                    'Una reflexión sobre este libro que grabé desde Voice Notes.',
+            });
+
+            setSaved(true);
+        } catch {
+            setSaveError('No se pudo guardar la nota.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     return (
         <div className="container py-4">
             <div className="mb-4">
@@ -139,6 +174,8 @@ export function CreateNotePage() {
 
             <section className="card border-0 shadow-sm">
                 <div className="card-body text-center py-5">
+
+                    {/* Estado inicial */}
                     {!isRecording && !audioUrl && (
                         <>
                             <div className="fs-1 mb-3">
@@ -164,6 +201,7 @@ export function CreateNotePage() {
                         </>
                     )}
 
+                    {/* Grabando */}
                     {isRecording && (
                         <>
                             <div className="fs-1 mb-3">
@@ -189,6 +227,7 @@ export function CreateNotePage() {
                         </>
                     )}
 
+                    {/* Grabación terminada */}
                     {!isRecording && audioUrl && (
                         <>
                             <div className="fs-1 mb-3">
@@ -209,9 +248,13 @@ export function CreateNotePage() {
                                 <button
                                     type="button"
                                     className="btn btn-dark py-3"
+                                    onClick={handleSaveNote}
+                                    disabled={saving}
                                 >
                                     <i className="bi bi-file-text me-2"></i>
-                                    Transcribir nota
+                                    {saving
+                                        ? 'Guardando...'
+                                        : 'Guardar nota'}
                                 </button>
 
                                 <button
@@ -220,14 +263,29 @@ export function CreateNotePage() {
                                     onClick={() => {
                                         setAudioUrl(null);
                                         setRecordingTime(0);
+                                        setSaveError(null);
+                                        setSaved(false);
                                     }}
                                 >
                                     Grabar nuevamente
                                 </button>
+
+                                {saveError && (
+                                    <div className="alert alert-danger mt-3 mb-0">
+                                        {saveError}
+                                    </div>
+                                )}
+
+                                {saved && (
+                                    <div className="alert alert-success mt-3 mb-0">
+                                        Nota guardada correctamente.
+                                    </div>
+                                )}
                             </div>
                         </>
                     )}
 
+                    {/* Error de micrófono */}
                     {error && (
                         <div className="alert alert-danger mt-4 mb-0">
                             {error}
