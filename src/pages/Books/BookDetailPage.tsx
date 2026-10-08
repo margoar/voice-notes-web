@@ -5,6 +5,7 @@ import { getBooks } from '../../api/books.api';
 import { getNotesByBookId } from '../../api/notes.api';
 import type { Book } from '../../types/Book';
 import type { Note } from '../../types/Note';
+import { generateDraft } from '../../api/drafts.api';
 
 export function BookDetailPage() {
     const { bookId } = useParams();
@@ -13,6 +14,9 @@ export function BookDetailPage() {
     const [notes, setNotes] = useState<Note[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [summary, setSummary] = useState<string | null>(null);
+    const [generatingSummary, setGeneratingSummary] = useState(false);
+    const [summaryError, setSummaryError] = useState<string | null>(null);
 
     useEffect(() => {
         async function loadBook() {
@@ -67,6 +71,25 @@ export function BookDetailPage() {
                 </Link>
             </div>
         );
+    }
+
+    async function handleGenerateSummary() {
+        if (!bookId || notes.length === 0) {
+            return;
+        }
+
+        setGeneratingSummary(true);
+        setSummaryError(null);
+
+        try {
+            const draft = await generateDraft(Number(bookId));
+
+            setSummary(draft.content);
+        } catch {
+            setSummaryError('No se pudo generar el resumen.');
+        } finally {
+            setGeneratingSummary(false);
+        }
     }
 
     return (
@@ -144,10 +167,39 @@ export function BookDetailPage() {
                 <button
                     type="button"
                     className="btn btn-outline-dark w-100"
-                    disabled={notes.length === 0} >
+                    disabled={notes.length === 0 || generatingSummary}
+                    onClick={handleGenerateSummary}
+                >
                     <i className="bi bi-stars me-2"></i>
-                    Generar resumen
+
+                    {generatingSummary
+                        ? 'Generando resumen...'
+                        : 'Generar resumen'}
                 </button>
+
+                {summaryError && (
+                    <div className="alert alert-danger mt-3">
+                        {summaryError}
+                    </div>
+                )}
+
+                {summary && (
+                    <div className="card border-0 shadow-sm mt-4">
+                        <div className="card-body">
+                            <div className="d-flex justify-content-between align-items-center mb-3">
+                                <h2 className="h6 fw-semibold mb-0">
+                                    Borrador generado
+                                </h2>
+
+                                <i className="bi bi-stars"></i>
+                            </div>
+
+                            <p className="mb-0" style={{ whiteSpace: 'pre-wrap' }}>
+                                {summary}
+                            </p>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

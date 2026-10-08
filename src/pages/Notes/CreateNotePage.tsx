@@ -3,25 +3,30 @@ import { Link, useParams } from 'react-router-dom';
 
 import { createNote } from '../../api/notes.api';
 import { transcribeAudio } from '../../services/speechToText.service';
+
 export function CreateNotePage() {
     const { bookId } = useParams();
 
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
+
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-    const [error, setError] = useState<string | null>(null);
+
+    const [transcription, setTranscription] = useState('');
+    const [correctedText, setCorrectedText] = useState('');
+
+    const [isTranscribing, setIsTranscribing] = useState(false);
+
     const [saving, setSaving] = useState(false);
-    const [saveError, setSaveError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
+
+    const [error, setError] = useState<string | null>(null);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const mediaStreamRef = useRef<MediaStream | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
-
-    const [transcription, setTranscription] = useState('');
-    const [correctedText, setCorrectedText] = useState('');
-    const [isTranscribing, setIsTranscribing] = useState(false);
 
     useEffect(() => {
         if (!isRecording) {
@@ -64,6 +69,15 @@ export function CreateNotePage() {
             setSaveError(null);
             setSaved(false);
 
+            setTranscription('');
+            setCorrectedText('');
+            setAudioBlob(null);
+
+            if (audioUrl) {
+                URL.revokeObjectURL(audioUrl);
+                setAudioUrl(null);
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: true,
             });
@@ -95,7 +109,6 @@ export function CreateNotePage() {
                 setAudioBlob(blob);
 
                 const url = URL.createObjectURL(blob);
-
                 setAudioUrl(url);
 
                 stream.getTracks().forEach((track) => {
@@ -129,6 +142,31 @@ export function CreateNotePage() {
         setIsRecording(false);
     };
 
+    const handleTranscribe = async () => {
+        if (!audioBlob) {
+            setError('No hay una grabación para transcribir.');
+            return;
+        }
+
+        setIsTranscribing(true);
+        setError(null);
+        setSaveError(null);
+
+        try {
+            const text = await transcribeAudio(audioBlob);
+
+            setTranscription(text);
+
+            // Inicialmente mostramos la transcripción
+            // como texto editable.
+            setCorrectedText(text);
+        } catch {
+            setError('No se pudo transcribir la grabación.');
+        } finally {
+            setIsTranscribing(false);
+        }
+    };
+
     const handleSaveNote = async () => {
         if (!bookId) {
             setSaveError('No se encontró el libro.');
@@ -136,7 +174,9 @@ export function CreateNotePage() {
         }
 
         if (!transcription || !correctedText.trim()) {
-            setSaveError('Debes tener una transcripción para guardar la nota.');
+            setSaveError(
+                'Debes tener una transcripción para guardar la nota.',
+            );
             return;
         }
 
@@ -148,7 +188,7 @@ export function CreateNotePage() {
             await createNote({
                 bookId: Number(bookId),
                 transcriptionText: transcription,
-                correctedText,
+                correctedText: correctedText.trim(),
             });
 
             setSaved(true);
@@ -158,23 +198,25 @@ export function CreateNotePage() {
             setSaving(false);
         }
     };
-    const handleTranscribe = async () => {
-        if (!audioBlob) return;
 
-        setIsTranscribing(true);
-        setError(null);
-
-        try {
-            const text = await transcribeAudio(audioBlob);
-            setTranscription(text);
-            setCorrectedText(text);
-        } catch (error) {
-            console.error(error);
-            setError('No pudimos transcribir la grabación.');
-        } finally {
-            setIsTranscribing(false);
+    const handleRecordAgain = () => {
+        if (audioUrl) {
+            URL.revokeObjectURL(audioUrl);
         }
+
+        setAudioUrl(null);
+        setAudioBlob(null);
+
+        setTranscription('');
+        setCorrectedText('');
+
+        setRecordingTime(0);
+
+        setError(null);
+        setSaveError(null);
+        setSaved(false);
     };
+
     return (
         <div className="container py-4">
             <div className="mb-4">
@@ -212,7 +254,8 @@ export function CreateNotePage() {
                             </h3>
 
                             <p className="text-secondary">
-                                Cuando estés lista, comenzaremos a grabar tu nota.
+                                Cuando estés lista, comenzaremos a grabar tu
+                                nota.
                             </p>
 
                             <button
@@ -268,15 +311,24 @@ export function CreateNotePage() {
                                 src={audioUrl}
                                 className="w-100 mb-4"
                             />
-                            <button
-                                type="button"
-                                className="btn btn-dark py-3 mb-3 w-100"
-                                onClick={handleTranscribe}
-                                disabled={isTranscribing} >
-                                <i className="bi bi-magic me-2"></i>
-                                {isTranscribing ? 'Transcribiendo...' : 'Transcribir grabación'}
-                            </button>
 
+                            {/* Transcribir */}
+                            {!transcription && (
+                                <button
+                                    type="button"
+                                    className="btn btn-dark py-3 w-100"
+                                    onClick={handleTranscribe}
+                                    disabled={isTranscribing}
+                                >
+                                    <i className="bi bi-magic me-2"></i>
+
+                                    {isTranscribing
+                                        ? 'Transcribiendo...'
+                                        : 'Transcribir grabación'}
+                                </button>
+                            )}
+
+                            {/* Transcripción y edición */}
                             {transcription && (
                                 <div className="text-start mt-4">
                                     <label
@@ -289,59 +341,64 @@ export function CreateNotePage() {
                                     <textarea
                                         id="correctedText"
                                         className="form-control"
-                                        rows={7}
+                                        rows={8}
                                         value={correctedText}
-                                        onChange={(event) => setCorrectedText(event.target.value)}
+                                        onChange={(event) =>
+                                            setCorrectedText(
+                                                event.target.value,
+                                            )
+                                        }
                                         placeholder="Corrige aquí la transcripción..."
                                     />
 
                                     <small className="text-secondary">
-                                        Puedes modificar el texto antes de guardarlo.
+                                        Puedes modificar el texto antes de
+                                        guardar la nota.
                                     </small>
+
+                                    <button
+                                        type="button"
+                                        className="btn btn-dark w-100 mt-3"
+                                        onClick={handleSaveNote}
+                                        disabled={
+                                            saving ||
+                                            !correctedText.trim()
+                                        }
+                                    >
+                                        <i className="bi bi-check-lg me-2"></i>
+
+                                        {saving
+                                            ? 'Guardando...'
+                                            : 'Guardar nota'}
+                                    </button>
                                 </div>
                             )}
-                            <div className="d-flex flex-column gap-2">
-                                <button
-                                    type="button"
-                                    className="btn btn-dark py-3"
-                                    onClick={handleSaveNote}
-                                    disabled={saving}
-                                >
-                                    <i className="bi bi-file-text me-2"></i>
-                                    {saving
-                                        ? 'Guardando...'
-                                        : 'Guardar nota'}
-                                </button>
 
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-secondary"
-                                    onClick={() => {
-                                        setAudioUrl(null);
-                                        setRecordingTime(0);
-                                        setSaveError(null);
-                                        setSaved(false);
-                                    }}
-                                >
-                                    Grabar nuevamente
-                                </button>
+                            <button
+                                type="button"
+                                className="btn btn-outline-secondary w-100 mt-3"
+                                onClick={handleRecordAgain}
+                                disabled={saving || isTranscribing}
+                            >
+                                <i className="bi bi-arrow-repeat me-2"></i>
+                                Grabar nuevamente
+                            </button>
 
-                                {saveError && (
-                                    <div className="alert alert-danger mt-3 mb-0">
-                                        {saveError}
-                                    </div>
-                                )}
+                            {saveError && (
+                                <div className="alert alert-danger mt-3 mb-0">
+                                    {saveError}
+                                </div>
+                            )}
 
-                                {saved && (
-                                    <div className="alert alert-success mt-3 mb-0">
-                                        Nota guardada correctamente.
-                                    </div>
-                                )}
-                            </div>
+                            {saved && (
+                                <div className="alert alert-success mt-3 mb-0">
+                                    Nota guardada correctamente.
+                                </div>
+                            )}
                         </>
                     )}
 
-                    {/* Error de micrófono */}
+                    {/* Error */}
                     {error && (
                         <div className="alert alert-danger mt-4 mb-0">
                             {error}
