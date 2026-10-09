@@ -11,12 +11,13 @@ export async function getNotesByBookId(bookId: number): Promise<Note[]> {
 
     return response.json();
 }
-
 interface CreateNoteData {
     bookId: number;
     transcriptionText: string;
     correctedText: string;
 }
+
+
 
 export async function createNote(
     data: CreateNoteData,
@@ -35,3 +36,36 @@ export async function createNote(
 
     return response.json();
 }
+
+export async function updateNote(
+    noteId: number,
+    data: {
+        transcriptionText: string;
+        correctedText: string;
+    },
+): Promise<Note> {
+    const response = await fetch(`${API_URL}/notes/${noteId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        throw new Error('No se pudo actualizar la nota');
+    }
+
+    return response.json();
+}
+
+export async function deleteNote(noteId: number): Promise<void> {
+    const response = await fetch(`${API_URL}/notes/${noteId}`, {
+        method: 'DELETE',
+    });
+
+    if (!response.ok) {
+        throw new Error('No se pudo eliminar la nota');
+    }
+}
+
