@@ -36,3 +36,19 @@ export async function updateDraft(
 
     return response.json();
 }
+
+
+export async function getDraftsByBookId(
+    bookId: number,
+): Promise<Draft[]> {
+    const response = await fetch(
+        `${API_URL}/drafts/book/${bookId}`,
+    );
+
+    if (!response.ok) {
+        throw new Error('No se pudieron obtener los borradores');
+    }
+
+    return response.json();
+}
+
