@@ -9,7 +9,7 @@ import {
 
 import type { Book } from '../../types/Book';
 import type { Draft } from '../../types/Draft';
-
+import { deleteDraft } from '../../api/drafts.api';
 interface DraftWithBook extends Draft {
     bookTitle: string;
 }
@@ -23,7 +23,8 @@ export function DraftsPage() {
     const [editedContent, setEditedContent] = useState('');
     const [saving, setSaving] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
+    const [deletingDraftId, setDeletingDraftId] = useState<number | null>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
     useEffect(() => {
         async function loadDrafts() {
             try {
@@ -101,6 +102,29 @@ export function DraftsPage() {
         }
     }
 
+    async function handleDeleteDraft(draftId: number) {
+        const confirmed = window.confirm(
+            '¿Seguro que quieres eliminar este borrador? Esta acción no se puede deshacer.',
+        );
+
+        if (!confirmed) return;
+
+        try {
+            setDeletingDraftId(draftId);
+            setDeleteError(null);
+
+            await deleteDraft(draftId);
+
+            setDrafts((current) =>
+                current.filter((draft) => Number(draft.id) !== draftId),
+            );
+        } catch {
+            setDeleteError('No se pudo eliminar el borrador. Inténtalo nuevamente.');
+        } finally {
+            setDeletingDraftId(null);
+        }
+    }
+
     return (
         <div className="container py-4">
             <div className="mb-4">
@@ -117,6 +141,12 @@ export function DraftsPage() {
             {error && (
                 <div className="alert alert-danger" role="alert">
                     {error}
+                </div>
+            )}
+
+            {deleteError && (
+                <div className="alert alert-danger" role="alert">
+                    {deleteError}
                 </div>
             )}
 
@@ -219,14 +249,30 @@ export function DraftsPage() {
                                                 : draft.content}
                                         </p>
 
-                                        <button
-                                            type="button"
-                                            className="btn btn-dark"
-                                            onClick={() => handleEdit(draft)}
-                                        >
-                                            <i className="bi bi-pencil me-2" />
-                                            Editar borrador
-                                        </button>
+                        
+                                        <div className="d-flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                className="btn btn-dark"
+                                                onClick={() => handleEdit(draft)}
+                                                disabled={deletingDraftId !== null}
+                                            >
+                                                <i className="bi bi-pencil me-2" />
+                                                Editar borrador
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline-danger"
+                                                onClick={() => void handleDeleteDraft(Number(draft.id))}
+                                                disabled={deletingDraftId !== null}
+                                            >
+                                                <i className="bi bi-trash me-2" />
+                                                {deletingDraftId === Number(draft.id)
+                                                    ? 'Eliminando...'
+                                                    : 'Eliminar'}
+                                            </button>
+                                        </div>
                                     </>
                                 )}
                             </div>

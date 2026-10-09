@@ -52,3 +52,13 @@ export async function getDraftsByBookId(
     return response.json();
 }
 
+export async function deleteDraft(draftId: number): Promise<void> {
+    const response = await fetch(`${API_URL}/drafts/${draftId}`, {
+        method: 'DELETE',
+    });
+
+    if (!response.ok) {
+        throw new Error('No se pudo eliminar el borrador');
+    }
+}
+
