@@ -31,3 +31,14 @@ export async function createBook(data: CreateBookData): Promise<Book> {
 
   return response.json();
 }
+
+
+export async function deleteBook(bookId: number): Promise<void> {
+  const response = await fetch(`${API_URL}/books/${bookId}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error('No se pudo eliminar el libro');
+  }
+}
